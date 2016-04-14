@@ -1,4 +1,4 @@
-from settings import SITE, HEADERS, regions, tournaments, seasons, matches, teams, wait
+from settings import SITE, HEADERS, regions, tournaments, seasons, matches, teams, players, managers, lineups, wait
 from lxml import html
 from urllib.parse import unquote
 import requests
@@ -156,6 +156,53 @@ def get_fixtures(tournament_id, season_id):
     wait()
 
 
+def get_lineups(match_id):
+    match = matches.find_one({'match': match_id})
+    url = '{0}/spielbericht/aufstellung/spielbericht/{match}'.format(SITE, **match)
+    r = requests.get(url, headers=HEADERS)
+    print(r.url)
+
+    content = html.fromstring(r.text)
+    tables = content.xpath('//div[@class="box"]')
+
+    lineup = {'home': {'team': match['home']},
+              'away': {'team': match['away']}}
+
+    for table in tables:
+        section = table.xpath('div/text()')[0].split(' ')[-1].lower()
+        side = 'home' if int(table.xpath('div/a/@id')[0]) == lineup['home']['team'] else 'away'
+
+        for row in table.xpath('div/table[@class="items"]/tr'):
+            if section == 'manager':
+                manager_name = row.xpath('td[1]/table/tr/td[2]/a/@title')[0]
+                manager_id = row.xpath('td[1]/table/tr/td[2]/a/@href')[0].split('/')[-1]
+                manager_nationality = row.xpath('td[2]/img/@title')[0]
+
+                managers.update_one({'manager': int(manager_id)},
+                                    {'$setOnInsert': {'name': manager_name,
+                                                      'nationality': manager_nationality}},
+                                    upsert=True)
+                lineup[side][section] = int(manager_id)
+
+            else:
+                player_position = row.xpath('td[1]/@title')[0]
+                player_number = row.xpath('td[1]/div/text()')[0]
+                player_name = row.xpath('td[2]/table/tr/td[2]/a/@title')[0]
+                player_id = row.xpath('td[2]/table/tr/td[2]/a/@id')[0]
+                player_nationality = row.xpath('td[3]/img/@title')[0]
+
+                players.update_one({'player': int(player_id)},
+                                   {'$setOnInsert': {'name': player_name,
+                                                     'nationality': player_nationality}},
+                                   upsert=True)
+
+                lineup[side].setdefault(section, list())
+                lineup[side][section].append({'player': int(player_id),
+                                             'position': player_position,
+                                             'number': player_number})
+
+    lineups.update_one({'match': match_id}, {'$set': lineup}, upsert=True)
+
 if __name__ == '__main__':
     get_regions()
     for region in regions.find().sort('name'):
@@ -164,3 +211,5 @@ if __name__ == '__main__':
         get_seasons(tournament['tournament'])
     for season in seasons.find().sort([('season', -1), ('tournament', 1)]).batch_size(1):
         get_fixtures(season['tournament'], season['season'])
+    for match in matches.find({'home': 31}).sort('date', 1):
+        get_lineups(match['match'])

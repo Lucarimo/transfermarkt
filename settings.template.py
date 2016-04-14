@@ -17,5 +17,7 @@ if client:
     tournaments = client.transfermarkt.tournaments
     seasons = client.transfermarkt.seasons
     matches = client.transfermarkt.matches
-    players = client.transfermarkt.players
     teams = client.transfermarkt.teams
+    players = client.transfermarkt.players
+    managers = client.transfermarkt.managers
+    lineups = client.transfermarkt.lineups
