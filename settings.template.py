@@ -20,4 +20,3 @@ if client:
     teams = client.transfermarkt.teams
     players = client.transfermarkt.players
     managers = client.transfermarkt.managers
-    lineups = client.transfermarkt.lineups
