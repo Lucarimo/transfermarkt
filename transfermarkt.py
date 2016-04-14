@@ -59,13 +59,16 @@ def get_tournaments(region_id):
     # Competitions
     for row in side if region['type'] else main:
         tournaments.update_one({'tournament': unquote(row.xpath('a/@href')[0].split('/')[-1])},
-                               {'$setOnInsert': {'name': row.xpath('a/@title')[0], 'region': region['region']}},
+                               {'$setOnInsert': {'name': row.xpath('a/@title')[0],
+                                                 'region': region['region']}},
                                upsert=True)
 
     # National teams
     for row in list() if region['type'] else side:
-        teams.update_one({'team': unquote(row.xpath('a/@href')[0].split('/')[-1])},
-                         {'$setOnInsert': {'name': row.xpath('a/@title')[0], 'region': region['region']}},
+        teams.update_one({'team': int(unquote(row.xpath('a/@href')[0].split('/')[-1]))},
+                         {'$setOnInsert': {'name': row.xpath('a/@title')[0],
+                                           'region': region['region'],
+                                           'national': True}},
                          upsert=True)
 
     wait()
@@ -92,7 +95,8 @@ def get_seasons(tournament_id):
     content = html.fromstring(r.text)
     for row in content.xpath('//div[@class="inline-select"]/select[@name="saison_id"]/option'):
         seasons.update_one({'tournament': tournament['tournament'], 'season': int(unquote(row.xpath('@value')[0]))},
-                           {'$setOnInsert': {'name': row.xpath('text()')[0], 'region': tournament['region']}},
+                           {'$setOnInsert': {'name': row.xpath('text()')[0],
+                                             'region': tournament['region']}},
                            upsert=True)
 
     wait()
@@ -116,17 +120,25 @@ def get_fixtures(tournament_id, season_id):
     datestamp, timestamp = date.min, time.min
     for row in content.xpath('//div[@class="box"]/table/tbody/tr[not(td/@colspan)]'):
         teams.update_one({'team': int(row.xpath('td[3]/a/@id')[0])},
-                         {'$setOnInsert': {'name': row.xpath('td[3]/a/text()')[0], 'region': tournament['region']}},
+                         {'$setOnInsert': {'name': row.xpath('td[3]/a/text()')[0],
+                                           'region': tournament['region'],
+                                           'national': False}},
                          upsert=True)
         teams.update_one({'team': int(row.xpath('td[7]/a/@id')[0])},
-                         {'$setOnInsert': {'name': row.xpath('td[7]/a/text()')[0], 'region': tournament['region']}},
+                         {'$setOnInsert': {'name': row.xpath('td[7]/a/text()')[0],
+                                           'region': tournament['region'],
+                                           'national': False}},
                          upsert=True)
 
         if row.xpath('td[2]/text()')[0].strip():
             timestamp = datetime.strptime(row.xpath('td[2]/text()')[0].strip(), '%I:%M %p').time()
 
         if row.xpath('td[1]/a/@href'):
-            datestamp = datetime.strptime(row.xpath('td[1]/a/@href')[0].split('/')[-1], '%Y-%m-%d')
+            datestring = row.xpath('td[1]/a/@href')[0].split('/')[-1]
+            if datestring == '0000-00-00':
+                datestamp = datestamp.min
+            else:
+                datestamp = datetime.strptime(row.xpath('td[1]/a/@href')[0].split('/')[-1], '%Y-%m-%d')
         else:
             datestamp = datetime.strptime(row.xpath('td[1]/text()')[0].strip().split(' ')[-1], '%m/%d/%y')
 
