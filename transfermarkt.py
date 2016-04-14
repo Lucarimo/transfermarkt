@@ -197,11 +197,13 @@ def get_lineups(match_id):
                                    upsert=True)
 
                 lineup[side].setdefault(section, list())
-                lineup[side][section].append({'player': int(player_id),
-                                             'position': player_position,
-                                             'number': player_number})
+                lineup[side][section].append({'player': int(player_id), 
+                                              'position': player_position,
+                                              'number': player_number})
 
     lineups.update_one({'match': match_id}, {'$set': lineup}, upsert=True)
+
+    wait()
 
 if __name__ == '__main__':
     get_regions()
